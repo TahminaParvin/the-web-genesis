@@ -5,6 +5,7 @@ import { SearchBar } from '@/components/search-bar';
 import { Navbar } from '@/components/navbar';
 import { Company } from '@/types';
 import { companyService } from '@/services/company-service';
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 const Index = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -12,15 +13,28 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCompanies, setTotalCompanies] = useState(0);
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(totalCompanies / itemsPerPage);
 
-  // Fetch companies on component mount
+  // Fetch companies on component mount or when page changes
   useEffect(() => {
     const loadCompanies = async () => {
       try {
         setIsLoading(true);
-        const data = await companyService.getCompanies();
-        setCompanies(data);
-        setFilteredCompanies(data);
+        // Only fetch paginated data when not searching
+        if (!searchQuery) {
+          const { data, total } = await companyService.getCompanies(currentPage, itemsPerPage);
+          setCompanies(data);
+          setFilteredCompanies(data);
+          setTotalCompanies(total);
+        } else {
+          const results = await companyService.searchCompanies(searchQuery);
+          setFilteredCompanies(results);
+        }
       } catch (err) {
         setError('Failed to load companies. Please try again later.');
         console.error(err);
@@ -30,14 +44,18 @@ const Index = () => {
     };
 
     loadCompanies();
-  }, []);
+  }, [currentPage, searchQuery]);
 
   // Handle search
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
+    setCurrentPage(1); // Reset to first page when searching
     
     if (!query.trim()) {
-      setFilteredCompanies(companies);
+      const { data, total } = await companyService.getCompanies(1, itemsPerPage);
+      setCompanies(data);
+      setFilteredCompanies(data);
+      setTotalCompanies(total);
       return;
     }
     
@@ -51,6 +69,78 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
+
+  // Generate pagination items
+  const renderPaginationItems = () => {
+    const items = [];
+    const maxVisiblePages = 3;
+    
+    // Start and end page calculation
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    // Adjust start if we're near the end
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    // First page
+    if (startPage > 1) {
+      items.push(
+        <PaginationItem key="first">
+          <PaginationLink onClick={() => handlePageChange(1)} isActive={currentPage === 1}>
+            1
+          </PaginationLink>
+        </PaginationItem>
+      );
+      
+      if (startPage > 2) {
+        items.push(
+          <PaginationItem key="ellipsis-start">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+    }
+
+    // Pages
+    for (let i = startPage; i <= endPage; i++) {
+      items.push(
+        <PaginationItem key={i}>
+          <PaginationLink onClick={() => handlePageChange(i)} isActive={currentPage === i}>
+            {i}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+
+    // Last page
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        items.push(
+          <PaginationItem key="ellipsis-end">
+            <PaginationEllipsis />
+          </PaginationItem>
+        );
+      }
+      
+      items.push(
+        <PaginationItem key="last">
+          <PaginationLink onClick={() => handlePageChange(totalPages)} isActive={currentPage === totalPages}>
+            {totalPages}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+
+    return items;
   };
 
   return (
@@ -107,6 +197,33 @@ const Index = () => {
                 <p className="text-muted-foreground mt-2">
                   Try adjusting your search terms or browse all companies.
                 </p>
+              </div>
+            )}
+            
+            {/* Pagination - only show when not searching */}
+            {!searchQuery && totalPages > 1 && (
+              <div className="mt-8">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        aria-disabled={currentPage === 1}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                    
+                    {renderPaginationItems()}
+                    
+                    <PaginationItem>
+                      <PaginationNext 
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        aria-disabled={currentPage === totalPages}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
               </div>
             )}
           </div>

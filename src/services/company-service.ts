@@ -10,10 +10,19 @@ let companies = [...initialCompanies];
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const companyService = {
-  // Get all companies
-  getCompanies: async (): Promise<Company[]> => {
+  // Get companies with pagination
+  getCompanies: async (page: number = 1, itemsPerPage: number = 5): Promise<{data: Company[], total: number}> => {
     await delay(300); // Simulate network delay
-    return [...companies];
+    
+    // Calculate pagination
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedCompanies = companies.slice(startIndex, endIndex);
+    
+    return {
+      data: paginatedCompanies,
+      total: companies.length
+    };
   },
   
   // Search companies by name or sector

@@ -14,3 +14,10 @@ export interface User {
   password: string;
   isAdmin: boolean;
 }
+
+export interface PaginationInfo {
+  page: number;
+  totalItems: number;
+  itemsPerPage: number;
+  totalPages: number;
+}
